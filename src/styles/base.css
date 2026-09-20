@@ -1,0 +1,143 @@
+/* ============ 设计令牌 ============ */
+:root {
+  --font-sans: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', 'Noto Sans CJK SC', 'Source Han Sans SC', 'WenQuanYi Micro Hei',
+    'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'SF Mono', 'JetBrains Mono', 'Cascadia Code', Consolas, 'Noto Sans Mono CJK SC', monospace;
+
+  --c-primary: #4f46e5;
+  --c-primary-strong: #4338ca;
+  --c-primary-soft: rgba(79, 70, 229, 0.09);
+  --c-accent: #0ea5e9;
+  --c-grad: linear-gradient(120deg, #6366f1, #0ea5e9);
+
+  --c-bg: #f4f6fb;
+  --c-bg-soft: #eceff7;
+  --c-surface: #ffffff;
+  --c-surface-2: #f8f9fd;
+  --c-border: #e4e8f1;
+  --c-border-strong: #cdd5e4;
+  --c-text: #344054;
+  --c-text-strong: #101828;
+  --c-text-soft: #667085;
+  --c-text-faint: #98a2b3;
+
+  --c-ok: #059669;
+  --c-ok-soft: rgba(5, 150, 105, 0.09);
+  --c-warn: #d97706;
+  --c-warn-soft: rgba(217, 119, 6, 0.1);
+  --c-danger: #dc2626;
+  --c-danger-soft: rgba(220, 38, 38, 0.08);
+  --c-info-soft: rgba(14, 165, 233, 0.09);
+
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --shadow-md: 0 4px 12px -2px rgba(16, 24, 40, 0.08), 0 2px 4px rgba(16, 24, 40, 0.04);
+  --shadow-lg: 0 12px 32px -8px rgba(16, 24, 40, 0.16);
+
+  --radius: 14px;
+  --radius-sm: 9px;
+  --sidebar-w: 272px;
+  --toc-w: 232px;
+  --topbar-h: 58px;
+  --ease: cubic-bezier(0.33, 1, 0.68, 1);
+}
+
+html.dark {
+  --c-primary: #818cf8;
+  --c-primary-strong: #a5b4fc;
+  --c-primary-soft: rgba(129, 140, 248, 0.13);
+  --c-accent: #38bdf8;
+  --c-grad: linear-gradient(120deg, #818cf8, #38bdf8);
+
+  --c-bg: #0b101e;
+  --c-bg-soft: #0e1526;
+  --c-surface: #141b2e;
+  --c-surface-2: #182036;
+  --c-border: #232d47;
+  --c-border-strong: #313d5e;
+  --c-text: #b7c1d4;
+  --c-text-strong: #eef2fa;
+  --c-text-soft: #8a95ac;
+  --c-text-faint: #5f6b84;
+
+  --c-ok: #34d399;
+  --c-ok-soft: rgba(52, 211, 153, 0.1);
+  --c-warn: #fbbf24;
+  --c-warn-soft: rgba(251, 191, 36, 0.1);
+  --c-danger: #f87171;
+  --c-danger-soft: rgba(248, 113, 113, 0.1);
+  --c-info-soft: rgba(56, 189, 248, 0.1);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 14px -2px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 12px 36px -8px rgba(0, 0, 0, 0.5);
+}
+
+/* ============ 基础 ============ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: calc(var(--topbar-h) + 20px);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 15.5px;
+  line-height: 1.75;
+  color: var(--c-text);
+  background: var(--c-bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  transition: background 0.25s var(--ease), color 0.25s var(--ease);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  color: var(--c-text-strong);
+  font-weight: 700;
+  line-height: 1.4;
+  margin: 0;
+  overflow-wrap: break-word;
+}
+
+a {
+  color: var(--c-primary);
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
+}
+
+::selection {
+  background: rgba(99, 102, 241, 0.25);
+}
+
+:focus-visible {
+  outline: 2px solid var(--c-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* 自定义滚动条（桌面端） */
+@media (hover: hover) and (pointer: fine) {
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--c-border-strong);
+    border-radius: 8px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}

@@ -1,6 +1,6 @@
-# 构建静态站点并按 GitHub Pages 的约定发布。
+# 构建 Vite 站点并发布到 GitHub Pages。
 #
-# 触发：推送到 main、手动触发；PR 只跑构建与自检，不发布。
+# 触发：推送到 main、手动触发；PR 只跑构建，不发布。
 name: Build and deploy to GitHub Pages
 
 on:
@@ -22,31 +22,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Build site
-        run: |
-          python3 scripts/build_site.py \
-            --input src/guide.md \
-            --output dist \
-            --title "行测六大模块" \
-            --subtitle "考点 / 技巧 / 例题" \
-            --logo "行测" \
-            --quiz-re '^\*\*示例\s*(\d+)\*\*(.*)$' \
-            --download "xingce-guide.docx" \
-            --download-label "下载 Word 版"
-
-      - name: Copy downloadable Word version
-        run: cp src/guide.docx dist/xingce-guide.docx
-
-      - name: Check built site
-        run: python3 scripts/check_site.py dist/index.html
+        run: npm run build
 
       - if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: actions/upload-pages-artifact@v4

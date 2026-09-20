@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="description" content="公务员考试行测六大模块学习指南：言语理解、政治理论、判断推理、常识判断、数量关系、资料分析的考点体系、解题方法与速算技巧。" />
+    <meta name="theme-color" content="#4f46e5" />
+    <title>行测指南 · 方法为先 | 公务员行测六大模块教学</title>
+    <script>
+      // 首屏前恢复主题，避免闪烁
+      try {
+        const saved = localStorage.getItem('xc-theme')
+        const dark = saved ? saved === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches
+        if (dark) document.documentElement.classList.add('dark')
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

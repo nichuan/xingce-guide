@@ -1,0 +1,47 @@
+/* ============ 全局布局辅助 ============ */
+
+/* 让原生控件与滚动条跟随明暗主题 */
+html {
+  color-scheme: light;
+}
+html.dark {
+  color-scheme: dark;
+}
+
+/* 锚点跳转目标的高亮反馈 */
+:target {
+  scroll-margin-top: calc(var(--topbar-h) + 24px);
+}
+
+/* 屏幕阅读器专用 */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* 打印：只保留正文 */
+@media print {
+  .sidebar,
+  .topbar,
+  .back-top,
+  .progress-track,
+  .chapter-toc,
+  .toc-toggle,
+  .pn-nav {
+    display: none !important;
+  }
+  .app-main {
+    margin: 0 !important;
+  }
+  body {
+    background: #fff;
+    color: #111;
+  }
+}
