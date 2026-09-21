@@ -5,17 +5,31 @@ import Icon from '../components/Icon.vue'
 import TocPanel from '../components/TocPanel.vue'
 import ReadingProgress from '../components/ReadingProgress.vue'
 import { renderMarkdown, type TocItem } from '../lib/markdown'
-import { rawContents } from '../content/load'
+import { loadContent } from '../content/load'
 import { chapters, getChapter } from '../content/chapters'
 import { ui } from '../lib/ui'
 import { scrollToId } from '../router'
+import {
+  isBookmarked,
+  learning,
+  recordProgress,
+  selfTestMode,
+  toggleBookmark,
+  toggleSelfTest,
+} from '../lib/learning'
 
 const route = useRoute()
 const router = useRouter()
 
 const chapter = computed(() => getChapter(route.params.id as string))
-const content = computed(() => rawContents[chapter.value?.id ?? ''] ?? '')
-const rendered = computed(() => renderMarkdown(content.value, chapter.value?.id ?? ''))
+const content = ref('')
+const loading = ref(true)
+const loadError = ref(false)
+const rendered = computed(() =>
+  content.value
+    ? renderMarkdown(content.value, chapter.value?.id ?? '')
+    : { html: '', toc: [] as TocItem[] },
+)
 
 const toc = computed<TocItem[]>(() => rendered.value.toc)
 const html = computed(() => rendered.value.html)
@@ -26,10 +40,17 @@ const next = computed(() => (idx.value < chapters.length - 1 ? chapters[idx.valu
 
 /* ---------- 滚动侦测（目录高亮 + 阅读进度） ---------- */
 const articleEl = ref<HTMLElement>()
+const tocSheetEl = ref<HTMLElement>()
+const tocCloseEl = ref<HTMLButtonElement>()
 const activeId = ref('')
 
 let headingEls: HTMLElement[] = []
 let rafId = 0
+let refreshTimer = 0
+let loadId = 0
+let lastPersist = 0
+let tocTrigger: HTMLElement | null = null
+let readyForProgress = false
 
 function refreshHeadings() {
   if (!articleEl.value) return
@@ -45,26 +66,133 @@ function onScroll() {
       else break
     }
     activeId.value = current
+    const now = Date.now()
+    if (readyForProgress && chapter.value && now - lastPersist > 600) {
+      const doc = document.documentElement
+      const total = doc.scrollHeight - doc.clientHeight
+      recordProgress(chapter.value.id, current, total > 0 ? doc.scrollTop / total : 0)
+      lastPersist = now
+    }
   })
 }
 
-watch(html, async () => {
-  if (!chapter.value) {
-    router.replace('/')
-    return
+function applySolutionMode() {
+  articleEl.value
+    ?.querySelectorAll<HTMLDetailsElement>('details.example-solution')
+    .forEach((item) => {
+      item.open = !selfTestMode.value
+    })
+}
+
+async function restoreProgress() {
+  if (route.query.resume !== '1' || route.hash || !chapter.value) return
+  const saved = learning.progress[chapter.value.id]
+  if (saved?.anchor && scrollToId(saved.anchor)) return
+  if (typeof saved?.ratio === 'number') {
+    const doc = document.documentElement
+    window.scrollTo({
+      top: saved.ratio * (doc.scrollHeight - doc.clientHeight),
+      behavior: 'smooth',
+    })
   }
+}
+
+watch(
+  () => chapter.value?.id,
+  async (id) => {
+    if (!id) return
+    readyForProgress = false
+    const currentLoad = ++loadId
+    loading.value = true
+    loadError.value = false
+    try {
+      const raw = await loadContent(id)
+      if (currentLoad !== loadId) return
+      content.value = raw
+    } catch {
+      if (currentLoad !== loadId) return
+      content.value = ''
+      loadError.value = true
+    } finally {
+      if (currentLoad === loadId) loading.value = false
+    }
+  },
+  { immediate: true },
+)
+
+watch(html, async () => {
   activeId.value = ''
   await nextTick()
   refreshHeadings()
+  applySolutionMode()
+  await restoreProgress()
+  readyForProgress = true
   // 等字体/公式渲染完成后重算一次
-  setTimeout(refreshHeadings, 350)
+  window.clearTimeout(refreshTimer)
+  refreshTimer = window.setTimeout(() => {
+    refreshHeadings()
+    onScroll()
+  }, 350)
 })
+
+watch(selfTestMode, async () => {
+  await nextTick()
+  applySolutionMode()
+})
+
+watch(
+  () => ui.tocOpen,
+  async (open) => {
+    if (open) {
+      tocTrigger = document.activeElement as HTMLElement | null
+      await nextTick()
+      tocCloseEl.value?.focus()
+    } else if (tocTrigger) {
+      await nextTick()
+      tocTrigger.focus()
+      tocTrigger = null
+    }
+  },
+)
+
+function trapTocFocus(e: KeyboardEvent) {
+  if (e.key !== 'Tab' || !tocSheetEl.value) return
+  const focusable = Array.from(
+    tocSheetEl.value.querySelectorAll<HTMLElement>('a[href], button:not([disabled])'),
+  )
+  const first = focusable[0]
+  const last = focusable[focusable.length - 1]
+  if (!first || !last) return
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault()
+    last.focus()
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault()
+    first.focus()
+  }
+}
 
 function onTocJump(id: string) {
   ui.tocOpen = false
   scrollToId(id)
-  // 仅更新地址栏，便于分享锚点；不触发路由导航
-  history.replaceState(history.state, '', `${location.pathname}#/ch/${chapter.value?.id ?? ''}#${id}`)
+  void router.replace({
+    name: 'chapter',
+    params: { id: chapter.value?.id },
+    hash: `#${id}`,
+  })
+}
+
+const currentHeading = computed(
+  () =>
+    toc.value.find((item) => item.id === activeId.value)?.text ?? chapter.value?.short ?? '本章',
+)
+const bookmarked = computed(() =>
+  chapter.value ? isBookmarked(chapter.value.id, activeId.value) : false,
+)
+
+function onBookmark() {
+  if (!chapter.value) return
+  toggleBookmark(chapter.value.id, activeId.value, currentHeading.value)
 }
 
 onMounted(async () => {
@@ -78,6 +206,12 @@ onUnmounted(() => {
   window.removeEventListener('scroll', onScroll)
   window.removeEventListener('resize', onScroll)
   cancelAnimationFrame(rafId)
+  window.clearTimeout(refreshTimer)
+  if (readyForProgress && chapter.value) {
+    const doc = document.documentElement
+    const total = doc.scrollHeight - doc.clientHeight
+    recordProgress(chapter.value.id, activeId.value, total > 0 ? doc.scrollTop / total : 0)
+  }
 })
 </script>
 
@@ -89,7 +223,10 @@ onUnmounted(() => {
       <!-- 主栏 -->
       <article class="chapter-main">
         <header class="chapter-header">
-          <span class="chapter-icon" :style="{ color: chapter.color, background: chapter.color + '1a' }">
+          <span
+            class="chapter-icon"
+            :style="{ color: chapter.color, background: chapter.color + '1a' }"
+          >
             <Icon :name="chapter.icon" />
           </span>
           <div class="chapter-heading">
@@ -103,6 +240,18 @@ onUnmounted(() => {
               <Icon name="clock" />
               阅读约 {{ chapter.minutes }} 分钟
             </span>
+            <span class="meta-chip">更新于 {{ chapter.lastUpdated }}</span>
+          </div>
+          <p class="chapter-scope">{{ chapter.applicableTo }} · 具体题量与政策以最新招考公告为准</p>
+          <div class="study-actions">
+            <button type="button" :aria-pressed="selfTestMode" @click="toggleSelfTest">
+              <Icon name="target" />
+              自测模式：{{ selfTestMode ? '开' : '关' }}
+            </button>
+            <button type="button" :aria-pressed="bookmarked" @click="onBookmark">
+              <Icon name="bookmark" />
+              {{ bookmarked ? '已收藏本节' : '收藏本节' }}
+            </button>
           </div>
         </header>
 
@@ -113,7 +262,11 @@ onUnmounted(() => {
           <Icon name="chevron-right" />
         </button>
 
-        <div ref="articleEl" class="prose" v-html="html"></div>
+        <div v-if="loading" class="chapter-state" role="status">正在加载章节内容……</div>
+        <div v-else-if="loadError" class="chapter-state error" role="alert">
+          章节加载失败，请刷新页面后重试。
+        </div>
+        <div v-else ref="articleEl" class="prose" v-html="html"></div>
 
         <!-- 上一篇 / 下一篇 -->
         <nav class="pn-nav">
@@ -143,10 +296,20 @@ onUnmounted(() => {
       <div v-if="ui.tocOpen" class="toc-mask" @click="ui.tocOpen = false"></div>
     </Transition>
     <Transition name="sheet">
-      <div v-if="ui.tocOpen" class="toc-sheet">
+      <div
+        v-if="ui.tocOpen"
+        ref="tocSheetEl"
+        class="toc-sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="toc-sheet-title"
+        @keydown="trapTocFocus"
+      >
         <div class="sheet-head">
-          <strong>本页目录</strong>
-          <button aria-label="关闭" @click="ui.tocOpen = false"><Icon name="x" /></button>
+          <strong id="toc-sheet-title">本页目录</strong>
+          <button ref="tocCloseEl" aria-label="关闭" @click="ui.tocOpen = false">
+            <Icon name="x" />
+          </button>
         </div>
         <div class="sheet-body">
           <TocPanel :toc="toc" :active-id="activeId" @jump="onTocJump" />
@@ -231,6 +394,46 @@ onUnmounted(() => {
   width: 12px;
   height: 12px;
 }
+.chapter-scope {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--c-text-faint);
+}
+.study-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+.study-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--c-border);
+  border-radius: 9px;
+  background: var(--c-surface);
+  color: var(--c-text-soft);
+  padding: 6px 10px;
+  cursor: pointer;
+}
+.study-actions button[aria-pressed='true'] {
+  color: var(--c-primary);
+  border-color: color-mix(in srgb, var(--c-primary) 40%, var(--c-border));
+  background: var(--c-primary-soft);
+}
+.study-actions svg {
+  width: 14px;
+  height: 14px;
+}
+.chapter-state {
+  min-height: 36vh;
+  display: grid;
+  place-items: center;
+  color: var(--c-text-soft);
+}
+.chapter-state.error {
+  color: var(--c-danger);
+}
 
 /* ---------- 移动端目录按钮 ---------- */
 .toc-toggle {
@@ -297,7 +500,10 @@ onUnmounted(() => {
   background: var(--c-surface);
   border: 1px solid var(--c-border);
   border-radius: var(--radius);
-  transition: border-color 0.2s, transform 0.2s var(--ease), box-shadow 0.2s;
+  transition:
+    border-color 0.2s,
+    transform 0.2s var(--ease),
+    box-shadow 0.2s;
 }
 .pn-card:not(.placeholder):hover {
   border-color: var(--c-primary);

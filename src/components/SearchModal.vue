@@ -1,59 +1,41 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import Icon from './Icon.vue'
 import { buildSearchIndex, type SearchSection } from '../lib/markdown'
-import { rawContents } from '../content/load'
+import { loadAllContents } from '../content/load'
 import { chapters } from '../content/chapters'
 import { ui } from '../lib/ui'
+import { searchSections } from '../lib/search'
 
 const router = useRouter()
 const query = ref('')
 const inputEl = ref<HTMLInputElement>()
+const panelEl = ref<HTMLElement>()
 const activeIdx = ref(0)
+const loading = ref(true)
+const searchIndex = ref<SearchSection[]>([])
+let previouslyFocused: HTMLElement | null = null
 
-let index: SearchSection[] | null = null
-function getIndex(): SearchSection[] {
-  if (!index) {
-    index = chapters.flatMap((c) => buildSearchIndex(c.id, c.short, rawContents[c.id] ?? ''))
-  }
-  return index
-}
+const hits = computed(() => searchSections(searchIndex.value, query.value))
 
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-}
-
-interface Hit extends SearchSection {
-  score: number
-  snippet: string
-}
-
-const hits = computed<Hit[]>(() => {
-  const q = query.value.trim()
-  if (!q) return []
-  const out: Hit[] = []
-  for (const s of getIndex()) {
-    const inHeading = s.heading.includes(q) ? 3 : 0
-    const count = s.text.split(q).length - 1
-    if (!inHeading && count === 0) continue
-    const pos = s.text.indexOf(q)
-    const start = Math.max(0, pos - 28)
-    const end = Math.min(s.text.length, pos + q.length + 52)
-    const snippetRaw =
-      (start > 0 ? '…' : '') + s.text.slice(start, end) + (end < s.text.length ? '…' : '')
-    const snippet = escapeHtml(snippetRaw).split(escapeHtml(q)).join(`<mark>${escapeHtml(q)}</mark>`)
-    out.push({ ...s, score: inHeading + Math.min(count, 4), snippet })
-  }
-  return out.sort((a, b) => b.score - a.score).slice(0, 12)
+watch(query, () => {
+  activeIdx.value = 0
+})
+watch(hits, (items) => {
+  activeIdx.value = items.length ? Math.min(activeIdx.value, items.length - 1) : 0
 })
 
-function go(hit: Hit) {
+function go(hit: (typeof hits.value)[number]) {
   ui.searchOpen = false
   router.push(`/ch/${hit.chapterId}#${hit.anchor}`)
 }
 
 function onKey(e: KeyboardEvent) {
+  if (!hits.value.length && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+    e.preventDefault()
+    return
+  }
   if (e.key === 'ArrowDown') {
     e.preventDefault()
     activeIdx.value = Math.min(activeIdx.value + 1, hits.value.length - 1)
@@ -65,23 +47,67 @@ function onKey(e: KeyboardEvent) {
   }
 }
 
+function trapFocus(e: KeyboardEvent) {
+  if (e.key !== 'Tab' || !panelEl.value) return
+  const focusable = Array.from(
+    panelEl.value.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+    ),
+  )
+  if (!focusable.length) return
+  const first = focusable[0]
+  const last = focusable[focusable.length - 1]
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault()
+    last.focus()
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault()
+    first.focus()
+  }
+}
+
 const chapterColor = (id: string) => chapters.find((c) => c.id === id)?.color ?? 'var(--c-primary)'
 
 onMounted(async () => {
+  previouslyFocused = document.activeElement as HTMLElement | null
   await nextTick()
   inputEl.value?.focus()
+  try {
+    const contents = await loadAllContents()
+    searchIndex.value = chapters.flatMap((chapter) =>
+      buildSearchIndex(chapter.id, chapter.short, contents[chapter.id] ?? ''),
+    )
+  } finally {
+    loading.value = false
+  }
 })
+
+onUnmounted(() => previouslyFocused?.focus())
 </script>
 
 <template>
   <Teleport to="body">
     <div class="search-mask" @click.self="ui.searchOpen = false">
-      <div class="search-panel" role="dialog" aria-label="站内搜索">
+      <div
+        ref="panelEl"
+        class="search-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="search-title"
+        @keydown="trapFocus"
+      >
+        <h2 id="search-title" class="sr-only">站内搜索</h2>
         <div class="search-head">
           <Icon name="search" />
           <input
             ref="inputEl"
             v-model="query"
+            aria-label="搜索考点、公式和技巧"
+            role="combobox"
+            aria-controls="search-results"
+            aria-autocomplete="list"
+            :aria-expanded="hits.length > 0"
+            :aria-activedescendant="hits[activeIdx] ? `search-hit-${activeIdx}` : undefined"
             placeholder="搜索考点、公式、技巧……"
             @keydown="onKey"
           />
@@ -90,12 +116,19 @@ onMounted(async () => {
           </button>
         </div>
 
-        <div class="search-body">
-          <template v-if="!query.trim()">
+        <div id="search-results" class="search-body" role="listbox" aria-label="搜索结果">
+          <template v-if="loading">
+            <div class="search-empty" role="status">正在加载搜索索引……</div>
+          </template>
+          <template v-else-if="!query.trim()">
             <div class="search-empty">
               <p>试试这些关键词：</p>
               <div class="hot-words">
-                <button v-for="w in ['基期量', '十字交叉', '翻译推理', '一笔画', '差分法', '成语']" :key="w" @click="query = w">
+                <button
+                  v-for="w in ['基期量', '十字交叉', '翻译推理', '一笔画', '差分法', '成语']"
+                  :key="w"
+                  @click="query = w"
+                >
                   {{ w }}
                 </button>
               </div>
@@ -107,15 +140,24 @@ onMounted(async () => {
           <template v-else>
             <button
               v-for="(hit, i) in hits"
+              :id="`search-hit-${i}`"
               :key="hit.chapterId + hit.anchor"
               class="hit"
+              role="option"
+              :aria-selected="i === activeIdx"
               :class="{ active: i === activeIdx }"
               :data-active="i === activeIdx"
               @click="go(hit)"
               @mousemove="activeIdx = i"
             >
               <div class="hit-head">
-                <span class="hit-chip" :style="{ color: chapterColor(hit.chapterId), background: chapterColor(hit.chapterId) + '1a' }">
+                <span
+                  class="hit-chip"
+                  :style="{
+                    color: chapterColor(hit.chapterId),
+                    background: chapterColor(hit.chapterId) + '1a',
+                  }"
+                >
                   {{ hit.chapterTitle }}
                 </span>
                 <span class="hit-heading">{{ hit.heading }}</span>

@@ -12,7 +12,7 @@ const emit = defineEmits<{ jump: [id: string] }>()
 <template>
   <nav class="toc" aria-label="本页目录">
     <div class="toc-label">本页目录</div>
-    <!-- hash 路由下普通锚点会破坏地址，改为受控滚动 -->
+    <!-- 受控滚动可同步路由、阅读进度与当前目录状态 -->
     <a
       v-for="item in toc"
       :key="item.id"
@@ -48,7 +48,9 @@ const emit = defineEmits<{ jump: [id: string] }>()
   color: var(--c-text-soft);
   border-left: 2px solid var(--c-border);
   text-decoration: none;
-  transition: color 0.18s, border-color 0.18s;
+  transition:
+    color 0.18s,
+    border-color 0.18s;
   max-height: 5.5em;
   overflow: hidden;
   display: -webkit-box;

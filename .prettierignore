@@ -1,0 +1,7 @@
+dist/
+node_modules/
+src/content/*.md
+OPTIMIZATION.md
+README.md
+package-lock.json
+public/og-image.svg

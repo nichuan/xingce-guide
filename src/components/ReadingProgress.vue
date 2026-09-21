@@ -74,7 +74,10 @@ onUnmounted(() => {
   cursor: pointer;
   box-shadow: var(--shadow-md);
   z-index: 60;
-  transition: color 0.2s, border-color 0.2s, transform 0.2s;
+  transition:
+    color 0.2s,
+    border-color 0.2s,
+    transform 0.2s;
 }
 .back-top:hover {
   color: var(--c-primary);
@@ -87,7 +90,9 @@ onUnmounted(() => {
 }
 .pop-enter-active,
 .pop-leave-active {
-  transition: opacity 0.2s, transform 0.2s;
+  transition:
+    opacity 0.2s,
+    transform 0.2s;
 }
 .pop-enter-from,
 .pop-leave-to {

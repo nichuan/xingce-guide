@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, watch } from 'vue'
+import { defineAsyncComponent, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import SiteSidebar from './components/SiteSidebar.vue'
 import TopBar from './components/TopBar.vue'
-import SearchModal from './components/SearchModal.vue'
 import { ui, closeAll } from './lib/ui'
+import { updateMetadata } from './lib/metadata'
+
+const SearchModal = defineAsyncComponent(() => import('./components/SearchModal.vue'))
 
 const route = useRoute()
 
@@ -23,12 +25,18 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
 // 路由切换后关闭移动端浮层
 watch(() => route.fullPath, closeAll)
+watch(
+  () => route.fullPath,
+  () => updateMetadata(route),
+  { immediate: true },
+)
 
 // 抽屉打开时锁定背景滚动
 watch(
   () => ui.sidebarOpen || ui.tocOpen || ui.searchOpen,
   (locked) => {
     document.body.style.overflow = locked ? 'hidden' : ''
+    document.querySelector('.app-main')?.toggleAttribute('inert', locked)
   },
 )
 </script>

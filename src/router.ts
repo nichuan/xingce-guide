@@ -1,6 +1,5 @@
-import { createRouter, createWebHashHistory } from 'vue-router'
-import HomeView from './views/HomeView.vue'
-import ChapterView from './views/ChapterView.vue'
+import { createRouter, createWebHistory } from 'vue-router'
+import { getChapter } from './content/chapters'
 
 /** 平滑滚动到锚点元素，返回是否找到 */
 export function scrollToId(id: string, offset = 84): boolean {
@@ -11,13 +10,33 @@ export function scrollToId(id: string, offset = 84): boolean {
   return true
 }
 
-// 使用 hash 路由：GitHub Pages 无需 404 回退配置
 export const router = createRouter({
-  history: createWebHashHistory(import.meta.env.BASE_URL),
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
-    { path: '/', name: 'home', component: HomeView },
-    { path: '/ch/:id', name: 'chapter', component: ChapterView },
-    { path: '/:pathMatch(.*)*', redirect: '/' },
+    {
+      path: '/',
+      name: 'home',
+      component: () => import('./views/HomeView.vue'),
+    },
+    {
+      path: '/ch/:id',
+      name: 'chapter',
+      component: () => import('./views/ChapterView.vue'),
+      beforeEnter(to) {
+        return getChapter(String(to.params.id)) ? true : { name: 'not-found', replace: true }
+      },
+    },
+    {
+      path: '/formulas',
+      name: 'formulas',
+      component: () => import('./views/FormulaView.vue'),
+    },
+    {
+      path: '/404',
+      name: 'not-found',
+      component: () => import('./views/NotFoundView.vue'),
+    },
+    { path: '/:pathMatch(.*)*', redirect: { name: 'not-found' } },
   ],
   scrollBehavior(to, _from, savedPosition) {
     if (savedPosition) return savedPosition

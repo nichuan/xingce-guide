@@ -1,7 +1,18 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import Icon from '../components/Icon.vue'
-import { chapters, chapterGroups } from '../content/chapters'
+import { chapters, chapterGroups, getChapter } from '../content/chapters'
 import { renderMarkdown } from '../lib/markdown'
+import { completedCount, latestProgress } from '../lib/learning'
+
+const continueChapter = computed(() =>
+  latestProgress.value ? getChapter(latestProgress.value.chapterId) : undefined,
+)
+const continueTo = computed(() => {
+  const item = latestProgress.value
+  if (!item) return '/ch/intro'
+  return `/ch/${item.chapterId}?resume=1`
+})
 
 const featureFormulas = [
   {
@@ -84,7 +95,9 @@ const stats = [
       <div class="hero-bg" aria-hidden="true"></div>
       <div class="hero-inner">
         <span class="hero-badge">公务员考试 · 行政职业能力测验</span>
-        <h1 class="hero-title">行测，<br class="hero-br" />考的是<span class="hero-grad">方法</span></h1>
+        <h1 class="hero-title">
+          行测，<br class="hero-br" />考的是<span class="hero-grad">方法</span>
+        </h1>
         <p class="hero-sub">
           题量大、时间紧，是行测的本质。这里不堆知识点，只讲方法：
           六大模块的考点体系、解题技巧与精讲例题，帮你把 120 分钟用在刀刃上。
@@ -106,6 +119,20 @@ const stats = [
           </div>
         </div>
       </div>
+    </section>
+
+    <section v-if="continueChapter && latestProgress" class="continue-card" aria-label="继续阅读">
+      <div>
+        <span>继续阅读 · 已完成 {{ completedCount }}/{{ chapters.length }} 章</span>
+        <h2>{{ continueChapter.num }} · {{ continueChapter.title }}</h2>
+        <div class="continue-progress" aria-hidden="true">
+          <i :style="{ width: `${Math.round(latestProgress.ratio * 100)}%` }"></i>
+        </div>
+      </div>
+      <RouterLink :to="continueTo" class="btn btn-primary">
+        {{ latestProgress.completed ? '再次阅读' : '继续学习' }}
+        <Icon name="arrow-right" />
+      </RouterLink>
     </section>
 
     <!-- 公式一瞥 -->
@@ -130,7 +157,7 @@ const stats = [
         <p>先读第一章建立试卷认知，再逐模块精读；判断推理、数量关系、资料分析是重点。</p>
       </div>
 
-      <template v-for="group in chapterGroups" :key="group.key" class="ch-group">
+      <template v-for="group in chapterGroups" :key="group.key">
         <div class="ch-group-label">{{ group.label }}</div>
         <div class="chapter-grid" :class="{ wide: group.key === 'modules' }">
           <RouterLink
@@ -215,8 +242,14 @@ const stats = [
 
     <footer class="home-footer">
       <p>行测指南 · 方法为先 —— 本站内容为原创整理的学习笔记，祝备考顺利。</p>
+      <p class="scope-note">
+        内容整理于
+        2026-09，适用于国考与多数省考的通用框架；具体题量、政策与时政内容以最新招考公告和考试大纲为准。
+      </p>
       <p>
-        <a href="https://github.com/nichuan/xingce-guide" target="_blank" rel="noopener">GitHub 仓库</a>
+        <a href="https://github.com/nichuan/xingce-guide" target="_blank" rel="noopener"
+          >GitHub 仓库</a
+        >
       </p>
     </footer>
   </main>
@@ -228,6 +261,55 @@ const stats = [
   max-width: 1060px;
   margin: 0 auto;
   padding: 0 20px 40px;
+}
+.continue-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin: -20px auto 44px;
+  max-width: 760px;
+  padding: 18px 20px;
+  border: 1px solid color-mix(in srgb, var(--c-primary) 25%, var(--c-border));
+  border-radius: var(--radius);
+  background: var(--c-surface);
+  box-shadow: var(--shadow-sm);
+}
+.continue-card > div {
+  min-width: 0;
+  flex: 1;
+}
+.continue-card span {
+  font-size: 12px;
+  color: var(--c-text-soft);
+}
+.continue-card h2 {
+  margin: 3px 0 9px;
+  font-size: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.continue-progress {
+  height: 5px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--c-bg-soft);
+}
+.continue-progress i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--c-grad);
+}
+@media (max-width: 600px) {
+  .continue-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .continue-card .btn {
+    justify-content: center;
+  }
 }
 
 /* ---------- Hero ---------- */
@@ -308,7 +390,11 @@ const stats = [
   border-radius: 12px;
   font-size: 15px;
   font-weight: 600;
-  transition: transform 0.18s var(--ease), box-shadow 0.18s, background 0.18s, border-color 0.18s;
+  transition:
+    transform 0.18s var(--ease),
+    box-shadow 0.18s,
+    background 0.18s,
+    border-color 0.18s;
 }
 .btn svg {
   width: 16px;
@@ -390,13 +476,13 @@ const stats = [
 .formula-card {
   display: flex;
   flex-direction: column;
-  background:
-    linear-gradient(135deg, var(--c-primary-soft), transparent 60%),
-    var(--c-surface);
+  background: linear-gradient(135deg, var(--c-primary-soft), transparent 60%), var(--c-surface);
   border: 1px solid color-mix(in srgb, var(--c-primary) 20%, var(--c-border));
   border-radius: var(--radius);
   padding: 18px 18px 14px;
-  transition: transform 0.2s var(--ease), box-shadow 0.2s;
+  transition:
+    transform 0.2s var(--ease),
+    box-shadow 0.2s;
 }
 .formula-card:hover {
   transform: translateY(-3px);
@@ -462,7 +548,10 @@ const stats = [
   border: 1px solid var(--c-border);
   border-radius: var(--radius);
   padding: 18px;
-  transition: transform 0.2s var(--ease), box-shadow 0.2s, border-color 0.2s;
+  transition:
+    transform 0.2s var(--ease),
+    box-shadow 0.2s,
+    border-color 0.2s;
 }
 .chapter-card:hover {
   transform: translateY(-3px);
@@ -530,7 +619,9 @@ const stats = [
   width: 15px;
   height: 15px;
   color: var(--c-text-faint);
-  transition: transform 0.2s, color 0.2s;
+  transition:
+    transform 0.2s,
+    color 0.2s;
 }
 .chapter-card:hover .chapter-arrow {
   transform: translateX(3px);
@@ -625,7 +716,10 @@ const stats = [
   border-radius: var(--radius);
   padding: 16px 20px;
   margin-bottom: 14px;
-  transition: transform 0.2s var(--ease), box-shadow 0.2s, border-color 0.2s;
+  transition:
+    transform 0.2s var(--ease),
+    box-shadow 0.2s,
+    border-color 0.2s;
 }
 .step-card:hover {
   transform: translateX(3px);

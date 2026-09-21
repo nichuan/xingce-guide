@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import Icon from './Icon.vue'
 import { ui } from '../lib/ui'
 import { useTheme } from '../lib/theme'
@@ -7,12 +8,18 @@ import { getChapter } from '../content/chapters'
 const { isDark, toggle } = useTheme()
 
 const props = defineProps<{ chapterId?: string }>()
-const chapter = props.chapterId ? getChapter(props.chapterId) : undefined
+const chapter = computed(() => (props.chapterId ? getChapter(props.chapterId) : undefined))
 </script>
 
 <template>
   <header class="topbar">
-    <button class="icon-btn" aria-label="打开导航" @click="ui.sidebarOpen = true">
+    <button
+      class="icon-btn"
+      aria-label="打开导航"
+      aria-controls="site-sidebar"
+      :aria-expanded="ui.sidebarOpen"
+      @click="ui.sidebarOpen = true"
+    >
       <Icon name="menu" />
     </button>
     <div class="topbar-title">
@@ -76,7 +83,9 @@ const chapter = props.chapterId ? getChapter(props.chapterId) : undefined
   display: grid;
   place-items: center;
   cursor: pointer;
-  transition: background 0.18s, color 0.18s;
+  transition:
+    background 0.18s,
+    color 0.18s;
 }
 .icon-btn:hover {
   background: var(--c-primary-soft);
