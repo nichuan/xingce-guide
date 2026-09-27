@@ -46,7 +46,9 @@ watch(
     <SiteSidebar />
     <div class="app-main">
       <TopBar :chapter-id="(route.params.id as string) || undefined" />
-      <router-view />
+      <router-view v-slot="{ Component }">
+        <component :is="Component" :key="(route.params.id as string) || String(route.name)" />
+      </router-view>
     </div>
     <SearchModal v-if="ui.searchOpen" />
   </div>
